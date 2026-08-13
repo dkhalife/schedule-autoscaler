@@ -1,0 +1,74 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: schedule-autoscaler-controller
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings"]
+    verbs: ["list", "watch", "create"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings"]
+    resourceNames: ["schedule-autoscaler"]
+    verbs: ["get", "update", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles"]
+    resourceNames: ["deployment-scale-editor"]
+    verbs: ["bind"]
+  - apiGroups: ["dkhalife.dev"]
+    resources: ["clusterscaleschedules", "scaleschedules", "deploymentscaleplans"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["dkhalife.dev"]
+    resources: ["clusterscaleschedules/status", "scaleschedules/status", "deploymentscaleplans/status"]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: schedule-autoscaler-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: schedule-autoscaler-controller
+subjects:
+  - kind: ServiceAccount
+    name: schedule-autoscaler
+    namespace: schedule-autoscaler-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: schedule-autoscaler-leader-election
+  namespace: schedule-autoscaler-system
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: schedule-autoscaler-leader-election
+  namespace: schedule-autoscaler-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: schedule-autoscaler-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: schedule-autoscaler
+    namespace: schedule-autoscaler-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: deployment-scale-editor
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "update", "patch"]

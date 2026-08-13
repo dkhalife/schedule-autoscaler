@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout
+  namespace: storefront
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: checkout
+  template:
+    metadata:
+      labels:
+        app: checkout
+    spec:
+      containers:
+        - name: server
+          image: registry.k8s.io/pause:3.10
+---
+apiVersion: dkhalife.dev/v1alpha1
+kind: ScaleSchedule
+metadata:
+  name: month-open
+  namespace: storefront
+spec:
+  timeZone: America/Los_Angeles
+  schedule:
+    type: Monthly
+    monthly:
+      days: [1, 2, 3]
+      startTime: "08:00"
+      durationMinutes: 600
+---
+apiVersion: dkhalife.dev/v1alpha1
+kind: DeploymentScalePlan
+metadata:
+  name: checkout
+  namespace: storefront
+spec:
+  targetRef:
+    name: checkout
+  baseline: 2
+  rules:
+    - name: month-open-capacity
+      scheduleRef:
+        kind: ScaleSchedule
+        name: month-open
+      replicas: 8
+      priority: 10

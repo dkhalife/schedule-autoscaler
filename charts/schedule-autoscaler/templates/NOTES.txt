@@ -1,0 +1,7 @@
+The controller is installed but cannot scale a namespace until it is opted in:
+
+  kubectl label namespace <namespace> scaling.dkhalife.dev/enabled=true
+
+Apply a ScaleSchedule and DeploymentScalePlan from the examples directory.
+The controller creates a narrow RoleBinding to deployment-scale-editor.
+Removing the label removes the managed RoleBinding and opts the namespace out.

@@ -1,0 +1,599 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clusterscaleschedules.dkhalife.dev
+  labels:
+    app.kubernetes.io/name: schedule-autoscaler
+spec:
+  group: dkhalife.dev
+  scope: Cluster
+  names:
+    plural: clusterscaleschedules
+    singular: clusterscaleschedule
+    kind: ClusterScaleSchedule
+    shortNames:
+      - css
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Type
+          type: string
+          jsonPath: .spec.schedule.type
+        - name: Time Zone
+          type: string
+          jsonPath: .spec.timeZone
+        - name: Valid
+          type: string
+          jsonPath: .status.conditions[?(@.type=="Valid")].status
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: ClusterScaleSchedule defines a reusable, cluster-scoped calendar for scale plans.
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - schedule
+              x-kubernetes-validations:
+                - rule: "!has(self.validFrom) || !has(self.validUntil) || timestamp(self.validFrom) < timestamp(self.validUntil)"
+                  message: validFrom must be earlier than validUntil
+              properties:
+                timeZone:
+                  type: string
+                  default: UTC
+                  minLength: 1
+                  maxLength: 128
+                  pattern: '^(UTC|Etc/UTC|[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)+)$'
+                  description: IANA time zone used to interpret monthly occurrence start times.
+                validFrom:
+                  type: string
+                  format: date-time
+                  description: Inclusive instant before which this schedule is inactive.
+                validUntil:
+                  type: string
+                  format: date-time
+                  description: Exclusive instant at and after which this schedule is inactive.
+                schedule:
+                  type: object
+                  required:
+                    - type
+                  x-kubernetes-validations:
+                    - rule: "self.type == 'Always' ? !has(self.monthly) : has(self.monthly)"
+                      message: monthly must be set exactly when type is Monthly
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - Always
+                        - Monthly
+                      description: Always is continuously active; Monthly uses recurring local-time windows.
+                    monthly:
+                      type: object
+                      required:
+                        - days
+                        - startTime
+                        - durationMinutes
+                      properties:
+                        months:
+                          type: array
+                          minItems: 1
+                          maxItems: 12
+                          x-kubernetes-list-type: set
+                          description: Optional start-month filter using numbers 1 through 12.
+                          items:
+                            type: integer
+                            minimum: 1
+                            maximum: 12
+                        days:
+                          type: array
+                          minItems: 1
+                          maxItems: 31
+                          x-kubernetes-list-type: set
+                          description: Local calendar days on which a window starts.
+                          items:
+                            type: integer
+                            minimum: 1
+                            maximum: 31
+                        startTime:
+                          type: string
+                          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+                          description: Local wall-clock start time in 24-hour HH:mm form.
+                        durationMinutes:
+                          type: integer
+                          format: int32
+                          minimum: 1
+                          maximum: 44640
+                          description: Length of each occurrence; windows may cross day, month, or year boundaries.
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                conditions:
+                  type: array
+                  maxItems: 16
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - type
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - reason
+                      - message
+                      - lastTransitionTime
+                    properties:
+                      type:
+                        type: string
+                        maxLength: 316
+                        pattern: '^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)$'
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                        minimum: 0
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                        minLength: 1
+                        maxLength: 1024
+                        pattern: '^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$'
+                      message:
+                        type: string
+                        maxLength: 32768
+                nextTransitionTime:
+                  type: string
+                  format: date-time
+                  description: Best-effort instant at which this schedule next changes active state.
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: scaleschedules.dkhalife.dev
+  labels:
+    app.kubernetes.io/name: schedule-autoscaler
+spec:
+  group: dkhalife.dev
+  scope: Namespaced
+  names:
+    plural: scaleschedules
+    singular: scaleschedule
+    kind: ScaleSchedule
+    shortNames:
+      - ss
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Type
+          type: string
+          jsonPath: .spec.schedule.type
+        - name: Time Zone
+          type: string
+          jsonPath: .spec.timeZone
+        - name: Valid
+          type: string
+          jsonPath: .status.conditions[?(@.type=="Valid")].status
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: ScaleSchedule defines a reusable, namespace-scoped calendar for scale plans.
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - schedule
+              x-kubernetes-validations:
+                - rule: "!has(self.validFrom) || !has(self.validUntil) || timestamp(self.validFrom) < timestamp(self.validUntil)"
+                  message: validFrom must be earlier than validUntil
+              properties:
+                timeZone:
+                  type: string
+                  default: UTC
+                  minLength: 1
+                  maxLength: 128
+                  pattern: '^(UTC|Etc/UTC|[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)+)$'
+                  description: IANA time zone used to interpret monthly occurrence start times.
+                validFrom:
+                  type: string
+                  format: date-time
+                  description: Inclusive instant before which this schedule is inactive.
+                validUntil:
+                  type: string
+                  format: date-time
+                  description: Exclusive instant at and after which this schedule is inactive.
+                schedule:
+                  type: object
+                  required:
+                    - type
+                  x-kubernetes-validations:
+                    - rule: "self.type == 'Always' ? !has(self.monthly) : has(self.monthly)"
+                      message: monthly must be set exactly when type is Monthly
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - Always
+                        - Monthly
+                      description: Always is continuously active; Monthly uses recurring local-time windows.
+                    monthly:
+                      type: object
+                      required:
+                        - days
+                        - startTime
+                        - durationMinutes
+                      properties:
+                        months:
+                          type: array
+                          minItems: 1
+                          maxItems: 12
+                          x-kubernetes-list-type: set
+                          description: Optional start-month filter using numbers 1 through 12.
+                          items:
+                            type: integer
+                            minimum: 1
+                            maximum: 12
+                        days:
+                          type: array
+                          minItems: 1
+                          maxItems: 31
+                          x-kubernetes-list-type: set
+                          description: Local calendar days on which a window starts.
+                          items:
+                            type: integer
+                            minimum: 1
+                            maximum: 31
+                        startTime:
+                          type: string
+                          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+                          description: Local wall-clock start time in 24-hour HH:mm form.
+                        durationMinutes:
+                          type: integer
+                          format: int32
+                          minimum: 1
+                          maximum: 44640
+                          description: Length of each occurrence; windows may cross day, month, or year boundaries.
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                conditions:
+                  type: array
+                  maxItems: 16
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - type
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - reason
+                      - message
+                      - lastTransitionTime
+                    properties:
+                      type:
+                        type: string
+                        maxLength: 316
+                        pattern: '^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)$'
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                        minimum: 0
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                        minLength: 1
+                        maxLength: 1024
+                        pattern: '^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$'
+                      message:
+                        type: string
+                        maxLength: 32768
+                nextTransitionTime:
+                  type: string
+                  format: date-time
+                  description: Best-effort instant at which this schedule next changes active state.
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: deploymentscaleplans.dkhalife.dev
+  labels:
+    app.kubernetes.io/name: schedule-autoscaler
+spec:
+  group: dkhalife.dev
+  scope: Namespaced
+  names:
+    plural: deploymentscaleplans
+    singular: deploymentscaleplan
+    kind: DeploymentScalePlan
+    shortNames:
+      - dsp
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Target
+          type: string
+          jsonPath: .spec.targetRef.name
+        - name: Desired
+          type: integer
+          jsonPath: .status.desiredReplicas
+        - name: Active Rule
+          type: string
+          jsonPath: .status.activeRule
+        - name: Suspended
+          type: boolean
+          jsonPath: .spec.suspension.enabled
+        - name: Ready
+          type: string
+          jsonPath: .status.conditions[?(@.type=="Ready")].status
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: DeploymentScalePlan assigns replica counts to a Deployment according to reusable schedules.
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - targetRef
+                - baseline
+                - rules
+              x-kubernetes-validations:
+                - rule: "self.rules.all(r, self.rules.filter(other, other.name == r.name).size() == 1)"
+                  message: rule names must be unique within a plan
+                - rule: "self.rules.filter(r, r.scheduleRef.kind == 'ScaleSchedule').all(r, !has(r.scheduleRef.namespace) || r.scheduleRef.namespace == '')"
+                  message: namespaced ScaleSchedule references are always resolved in the plan namespace
+                - rule: "self.rules.filter(r, r.scheduleRef.kind == 'ClusterScaleSchedule').all(r, !has(r.scheduleRef.namespace) || r.scheduleRef.namespace == '')"
+                  message: ClusterScaleSchedule references must not set namespace
+              properties:
+                targetRef:
+                  type: object
+                  required:
+                    - name
+                  x-kubernetes-validations:
+                    - rule: "!has(self.apiVersion) || self.apiVersion == 'apps/v1'"
+                      message: targetRef.apiVersion must be apps/v1
+                    - rule: "!has(self.kind) || self.kind == 'Deployment'"
+                      message: targetRef.kind must be Deployment
+                  properties:
+                    apiVersion:
+                      type: string
+                      default: apps/v1
+                      enum:
+                        - apps/v1
+                    kind:
+                      type: string
+                      default: Deployment
+                      enum:
+                        - Deployment
+                    name:
+                      type: string
+                      minLength: 1
+                      maxLength: 253
+                      pattern: '^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$'
+                      description: Name of a Deployment in the plan namespace.
+                baseline:
+                  type: integer
+                  format: int32
+                  minimum: 0
+                  maximum: 1000000
+                  description: Desired replicas when no rule is active.
+                rules:
+                  type: array
+                  minItems: 1
+                  maxItems: 128
+                  x-kubernetes-list-type: atomic
+                  description: Ordered scaling rules; priority wins, then earlier list position.
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - scheduleRef
+                      - replicas
+                    properties:
+                      name:
+                        type: string
+                        minLength: 1
+                        maxLength: 63
+                        pattern: '^[a-z]([-a-z0-9]*[a-z0-9])?$'
+                      scheduleRef:
+                        type: object
+                        required:
+                          - kind
+                          - name
+                        properties:
+                          apiGroup:
+                            type: string
+                            default: dkhalife.dev
+                            enum:
+                              - dkhalife.dev
+                          kind:
+                            type: string
+                            enum:
+                              - ScaleSchedule
+                              - ClusterScaleSchedule
+                          name:
+                            type: string
+                            minLength: 1
+                            maxLength: 253
+                            pattern: '^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$'
+                          namespace:
+                            type: string
+                            maxLength: 0
+                            description: Reserved; references cannot cross namespace boundaries.
+                      replicas:
+                        type: integer
+                        format: int32
+                        minimum: 0
+                        maximum: 1000000
+                      priority:
+                        type: integer
+                        format: int32
+                        default: 0
+                        minimum: -1000000
+                        maximum: 1000000
+                        description: Higher values take precedence when schedules overlap.
+                suspension:
+                  type: object
+                  default:
+                    enabled: false
+                    behavior: HoldCurrent
+                  required:
+                    - enabled
+                    - behavior
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                      description: Stops schedule-driven scale writes while true.
+                    behavior:
+                      type: string
+                      default: HoldCurrent
+                      enum:
+                        - HoldCurrent
+                        - RestoreBaseline
+                      description: HoldCurrent makes no write; RestoreBaseline writes baseline once.
+                    reason:
+                      type: string
+                      maxLength: 256
+                      description: Operator-facing explanation for suspension.
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                conditions:
+                  type: array
+                  maxItems: 16
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - type
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - reason
+                      - message
+                      - lastTransitionTime
+                    properties:
+                      type:
+                        type: string
+                        maxLength: 316
+                        pattern: '^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)$'
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                        minimum: 0
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                        minLength: 1
+                        maxLength: 1024
+                        pattern: '^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$'
+                      message:
+                        type: string
+                        maxLength: 32768
+                activeRule:
+                  type: string
+                  maxLength: 63
+                  description: Winning active rule, empty when baseline applies.
+                desiredReplicas:
+                  type: integer
+                  format: int32
+                  minimum: 0
+                  maximum: 1000000
+                currentReplicas:
+                  type: integer
+                  format: int32
+                  minimum: 0
+                  maximum: 1000000
+                lastEvaluationTime:
+                  type: string
+                  format: date-time
+                nextEvaluationTime:
+                  type: string
+                  format: date-time
+                lastScaleTime:
+                  type: string
+                  format: date-time
+                lastAppliedReplicas:
+                  type: integer
+                  format: int32
+                  minimum: 0
+                  maximum: 1000000

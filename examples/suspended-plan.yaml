@@ -1,0 +1,20 @@
+apiVersion: dkhalife.dev/v1alpha1
+kind: DeploymentScalePlan
+metadata:
+  name: checkout
+  namespace: storefront
+spec:
+  targetRef:
+    name: checkout
+  baseline: 2
+  rules:
+    - name: month-open-capacity
+      scheduleRef:
+        kind: ScaleSchedule
+        name: month-open
+      replicas: 8
+      priority: 10
+  suspension:
+    enabled: true
+    behavior: HoldCurrent
+    reason: incident-override

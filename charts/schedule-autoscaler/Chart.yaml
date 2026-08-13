@@ -1,0 +1,17 @@
+apiVersion: v2
+name: schedule-autoscaler
+description: Calendar-driven Kubernetes Deployment autoscaling with reusable schedules
+type: application
+version: 0.1.0
+appVersion: "v0.1.0"
+kubeVersion: ">=1.26.0-0"
+home: https://github.com/dkhalife/schedule-autoscaler
+sources:
+  - https://github.com/dkhalife/schedule-autoscaler
+keywords:
+  - kubernetes
+  - autoscaling
+  - schedules
+  - controller
+maintainers:
+  - name: dkhalife

@@ -1,0 +1,33 @@
+apiVersion: dkhalife.dev/v1alpha1
+kind: ClusterScaleSchedule
+metadata:
+  name: annual-maintenance-2026
+spec:
+  timeZone: UTC
+  validFrom: "2026-12-27T00:00:00Z"
+  validUntil: "2026-12-28T06:00:00Z"
+  schedule:
+    type: Always
+---
+apiVersion: dkhalife.dev/v1alpha1
+kind: DeploymentScalePlan
+metadata:
+  name: checkout-with-maintenance
+  namespace: storefront
+spec:
+  targetRef:
+    name: checkout
+  baseline: 2
+  rules:
+    - name: month-open-capacity
+      scheduleRef:
+        kind: ScaleSchedule
+        name: month-open
+      replicas: 8
+      priority: 10
+    - name: annual-maintenance
+      scheduleRef:
+        kind: ClusterScaleSchedule
+        name: annual-maintenance-2026
+      replicas: 0
+      priority: 100

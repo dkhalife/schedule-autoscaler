@@ -1,0 +1,78 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/dkhalife/schedule-autoscaler
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+rbac:
+  create: true
+  createDeploymentScaleEditor: true
+
+controller:
+  leaderElect: true
+  namespaceSelector: scaling.dkhalife.dev/enabled=true
+  logLevel: info
+  extraArgs: []
+
+metrics:
+  service:
+    enabled: true
+    port: 8080
+    annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+probes:
+  liveness:
+    initialDelaySeconds: 15
+    periodSeconds: 20
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+priorityClassName: ""
+terminationGracePeriodSeconds: 10
+
+# No mutating or validating webhook is needed. CRD structural schemas and CEL
+# rules perform admission validation.

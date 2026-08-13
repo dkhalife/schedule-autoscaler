@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.vscode
+bin
+dist
+coverage.out
+*.log
+docs
+examples
+charts
+config
